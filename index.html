@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bastards deadlock</title>
+  <meta property="og:title" content="bastards deadlock" />
+  <meta property="og:description" content="who is the best bastard?" />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#222222" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #222222;
+      --surface: rgba(10,87,85,0.25);
+      --panel: rgba(10,87,85,0.25);
+      --border: rgba(225,248,207,0.2);
+      --teal: #0a5755;
+      --accent: #e1f8cf;
+      --accent2: #d5141e;
+      --text: #e1f8cf;
+      --muted: rgba(225,248,207,0.5);
+      --win: #e1f8cf;
+      --loss: #d5141e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(225,248,207,0.03) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(10,87,85,0.05) 0%, transparent 50%);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* Welcome overlay */
+    .welcome-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg); z-index: 9999;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      opacity: 1; transition: opacity 0.8s ease-out;
+    }
+    .welcome-overlay.fade-out { opacity: 0; pointer-events: none; }
+    .welcome-overlay.hidden { display: none; }
+    .welcome-ascii {
+      font-size: clamp(0.2rem, 0.85vw, 0.6rem);
+      color: var(--text);
+      text-shadow: 0 0 20px rgba(225,248,207,0.8);
+      text-align: left; line-height: 1.15;
+      display: inline-block; max-width: 95vw; overflow: hidden;
+      white-space: pre;
+    }
+    .welcome-overlay .welcome-subtitle {
+      font-size: 0.9rem; color: var(--text); text-align: center;
+      margin-top: 1.5rem; font-weight: 400;
+      opacity: 0; transition: opacity 0.5s ease-in;
+      letter-spacing: 0.1em;
+    }
+
+    /* Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px;
+      background: var(--surface);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      position: relative; z-index: 10;
+    }
+    .logo { display: flex; align-items: center; gap: 14px; cursor: pointer; }
+    .logo-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--teal); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: var(--text);
+    }
+    .logo-text { font-size: 16px; font-weight: 700; letter-spacing: 3px; color: var(--text); }
+    .logo-text span { color: var(--accent2); }
+    .header-right {
+      display: flex; gap: 16px; align-items: center;
+    }
+    .header-status {
+      display: flex; gap: 8px; align-items: center;
+      font-size: 11px; color: var(--muted);
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--win); box-shadow: 0 0 6px rgba(225,248,207,0.5);
+      animation: blink 1.5s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; position: relative; z-index: 10; }
+
+    /* Sort controls */
+    .sort-bar {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .sort-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+    .sort-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      color: var(--muted); background: transparent;
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 10px; cursor: pointer; transition: all 0.2s;
+    }
+    .sort-btn:hover { color: var(--text); border-color: var(--text); }
+    .sort-btn.active { color: var(--accent2); border-color: var(--accent2); background: rgba(213,20,30,0.1); }
+
+    /* Leaderboard */
+    .leaderboard { display: flex; flex-direction: column; gap: 8px; margin-bottom: 32px; }
+    .lb-loading {
+      text-align: center; padding: 60px 20px; color: var(--muted); font-size: 12px;
+    }
+    .lb-loading .spinner {
+      display: inline-block; width: 28px; height: 28px;
+      border: 2px solid var(--border); border-top-color: var(--accent2);
+      border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .lb-row {
+      display: grid; grid-template-columns: 40px 48px 1fr 80px 80px 80px 100px;
+      gap: 12px; align-items: center;
+      background: var(--surface);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; cursor: pointer; transition: all 0.2s;
+    }
+    .lb-row:hover { transform: translateY(-1px); border-color: rgba(225,248,207,0.35); box-shadow: 0 4px 12px rgba(10,87,85,0.2); }
+    .lb-row.first {
+      border-color: rgba(225,248,207,0.4);
+      background: rgba(10,87,85,0.35);
+      box-shadow: 0 0 20px rgba(225,248,207,0.05);
+    }
+    .lb-rank { font-size: 20px; font-weight: 700; text-align: center; }
+    .lb-rank.first { color: var(--text); text-shadow: 0 0 12px rgba(225,248,207,0.6); }
+    .lb-rank.second { color: var(--muted); }
+    .lb-rank.third { color: var(--accent2); }
+    .lb-avatar {
+      width: 40px; height: 40px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--surface);
+      overflow: hidden; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: var(--muted);
+    }
+    .lb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .lb-name-col { min-width: 0; }
+    .lb-name { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-hero { font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-stat { font-size: 14px; text-align: center; }
+    .lb-stat-label { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-align: center; display: block; margin-top: 2px; }
+    .lb-form {
+      display: flex; gap: 3px; justify-content: center;
+    }
+    .lb-form-dot {
+      width: 8px; height: 8px; border-radius: 2px;
+    }
+    .lb-form-dot.w { background: var(--win); }
+    .lb-form-dot.l { background: var(--loss); }
+
+    .lb-header {
+      display: grid; grid-template-columns: 40px 48px 1fr 80px 80px 80px 100px;
+      gap: 12px; padding: 0 16px 6px;
+    }
+    .lb-header span { font-size: 9px; letter-spacing: 1px; color: var(--muted); text-align: center; }
+    .lb-header span:nth-child(3) { text-align: left; }
+
+    /* Crown for #1 */
+    .crown { font-size: 18px; }
+
+    /* Search bar (compact, in header area) */
+    .search-compact {
+      display: flex; gap: 6px; align-items: center;
+    }
+    .search-compact input {
+      background: var(--text); color: var(--teal);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      padding: 8px 12px; border: 1px solid var(--teal);
+      border-radius: 6px; outline: none; width: 220px;
+      transition: all 0.2s;
+    }
+    .search-compact input:focus { border-color: var(--accent2); box-shadow: 0 0 0 2px rgba(213,20,30,0.15); }
+    .search-compact input::placeholder { color: var(--teal); opacity: 0.6; }
+    .search-compact button {
+      background: var(--accent2); border: 1px solid var(--accent2); color: var(--text);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+      padding: 8px 14px; cursor: pointer; transition: all 0.2s;
+      border-radius: 6px; white-space: nowrap;
+    }
+    .search-compact button:hover { background: #b71119; }
+    .search-compact button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Detail view */
+    .detail-back {
+      font-size: 12px; color: var(--muted); cursor: pointer;
+      margin-bottom: 16px; display: inline-block; transition: color 0.2s;
+      background: none; border: none; font-family: 'JetBrains Mono', monospace;
+    }
+    .detail-back:hover { color: var(--text); }
+
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 20px 24px; position: relative; margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(225,248,207,0.05), 0 8px 24px rgba(10,87,85,0.15);
+    }
+    .panel-title { font-size: 11px; letter-spacing: 1px; color: var(--muted); margin-bottom: 16px; }
+
+    .player-card { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; }
+    .player-avatar {
+      width: 64px; height: 64px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; overflow: hidden;
+    }
+    .player-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+    .player-info h2 { font-size: 18px; font-weight: 700; color: var(--text); }
+    .player-meta { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+    .meta-chip {
+      font-size: 10px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 5px; padding: 2px 8px;
+    }
+    .share-btn {
+      font-size: 10px; color: var(--accent2); background: rgba(213,20,30,0.1);
+      border: 1px solid rgba(213,20,30,0.3); border-radius: 5px; padding: 2px 8px;
+      cursor: pointer; transition: all 0.2s; font-family: 'JetBrains Mono', monospace;
+    }
+    .share-btn:hover { background: rgba(213,20,30,0.2); }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .stat-box {
+      background: var(--surface);
+      backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; text-align: center; transition: all 0.2s;
+    }
+    .stat-box:hover { transform: translateY(-1px); }
+    .stat-value { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+    .stat-label { font-size: 9px; letter-spacing: 1px; color: var(--muted); margin-top: 4px; }
+    .stat-box.win .stat-value { color: var(--win); }
+    .stat-box.loss .stat-value { color: var(--loss); }
+
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .tab {
+      padding: 8px 18px; font-size: 12px; font-weight: 600; letter-spacing: 1px;
+      color: var(--muted); cursor: pointer;
+      border-bottom: 2px solid transparent; transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+    .match-list { display: flex; flex-direction: column; gap: 5px; }
+    .match-row {
+      display: grid; grid-template-columns: 5px 90px 1fr 70px 90px; gap: 10px;
+      align-items: center; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 12px; transition: all 0.15s;
+    }
+    .match-row:hover { border-color: rgba(225,248,207,0.3); }
+    .match-result-bar { width: 5px; height: 32px; border-radius: 2px; }
+    .match-result-bar.win { background: var(--win); }
+    .match-result-bar.loss { background: var(--loss); }
+    .match-result-text { font-weight: 700; font-size: 12px; letter-spacing: 1px; }
+    .match-result-text.win { color: var(--win); }
+    .match-result-text.loss { color: var(--loss); }
+    .match-time { font-size: 10px; color: var(--muted); }
+    .match-hero { font-weight: 600; font-size: 13px; color: var(--text); }
+    .match-hero-sub { font-size: 9px; color: var(--muted); }
+    .match-kda { font-size: 12px; text-align: center; }
+    .match-kda .k { color: var(--win); }
+    .match-kda .d { color: var(--loss); }
+    .match-kda .a { color: var(--muted); }
+    .match-duration { font-size: 11px; color: var(--muted); text-align: right; }
+    .match-header-row {
+      display: grid; grid-template-columns: 5px 90px 1fr 70px 90px;
+      gap: 10px; padding: 0 12px 6px;
+    }
+    .match-header-row span { font-size: 9px; letter-spacing: 1px; color: var(--muted); }
+
+    .hero-top-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .hero-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .hero-card-rank { font-size: 18px; color: var(--text); min-width: 24px; }
+    .hero-card-name { font-weight: 600; font-size: 13px; color: var(--text); }
+    .hero-card-stats { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    .hero-table { width: 100%; border-collapse: collapse; }
+    .hero-table th { font-size: 9px; letter-spacing: 1px; color: var(--muted); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .hero-table td { padding: 8px; font-size: 12px; border-bottom: 1px solid rgba(225,248,207,0.08); }
+    .hero-table tr:hover td { background: rgba(10,87,85,0.15); }
+    .hero-table .hero-name { font-weight: 600; color: var(--text); }
+    .wr-bar-wrap { display: flex; align-items: center; gap: 6px; }
+    .wr-bar { flex: 1; height: 3px; background: rgba(225,248,207,0.1); border-radius: 2px; overflow: hidden; }
+    .wr-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .wr-text { font-size: 11px; width: 40px; }
+
+    .error-msg {
+      background: rgba(213,20,30,0.1); border: 1px solid rgba(213,20,30,0.3);
+      color: var(--loss); font-size: 12px;
+      padding: 10px 14px; margin-top: 10px; border-radius: 6px;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.3s ease forwards; }
+    .wr-high { color: var(--win); }
+    .wr-mid  { color: var(--muted); }
+    .wr-low  { color: var(--loss); }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: var(--teal); color: var(--text); border: 1px solid var(--border);
+      padding: 8px 18px; border-radius: 6px; font-size: 11px;
+      transition: transform 0.3s ease; z-index: 9999; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    footer {
+      text-align: center; padding: 20px;
+      font-size: 9px; color: var(--text); letter-spacing: 1px;
+      border-top: 1px solid var(--border); margin-top: 40px;
+      opacity: 0.35; position: relative; z-index: 10;
+    }
+
+    @media (max-width: 768px) {
+      header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+      main { padding: 16px 12px; }
+      .search-compact input { width: 140px; }
+      .lb-row { grid-template-columns: 32px 36px 1fr 60px 60px; gap: 6px; padding: 10px 10px; }
+      .lb-row .lb-form, .lb-row .lb-stat:nth-child(6) { display: none; }
+      .lb-header { grid-template-columns: 32px 36px 1fr 60px 60px; gap: 6px; }
+      .lb-header span:nth-child(6), .lb-header span:nth-child(7) { display: none; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .player-card { grid-template-columns: auto 1fr; }
+      .match-row { grid-template-columns: 5px 80px 1fr 60px; }
+      .match-duration { display: none; }
+      .match-header-row { grid-template-columns: 5px 80px 1fr 60px; }
+      .match-header-row span:nth-child(5) { display: none; }
+      .hero-top-grid { grid-template-columns: 1fr; }
+      .welcome-ascii { font-size: clamp(0.1rem, 1vw, 0.3rem); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="welcome-overlay" id="welcomeOverlay">
+  <pre class="welcome-ascii">
+ ██████╗  █████╗ ███████╗████████╗ █████╗ ██████╗ ██████╗ ███████╗
+ ██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██╔════╝
+ ██████╔╝███████║███████╗   ██║   ███████║██████╔╝██║  ██║███████╗
+ ██╔══██╗██╔══██║╚════██║   ██║   ██╔══██║██╔══██╗██║  ██║╚════██║
+ ██████╔╝██║  ██║███████║   ██║   ██║  ██║██║  ██║██████╔╝███████║
+ ╚═════╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝
+
+ ██████╗ ███████╗ █████╗ ██████╗ ██╗      ██████╗  ██████╗██╗  ██╗
+ ██╔══██╗██╔════╝██╔══██╗██╔══██╗██║     ██╔═══██╗██╔════╝██║ ██╔╝
+ ██║  ██║█████╗  ███████║██║  ██║██║     ██║   ██║██║     █████╔╝
+ ██║  ██║██╔══╝  ██╔══██║██║  ██║██║     ██║   ██║██║     ██╔═██╗
+ ██████╔╝███████╗██║  ██║██████╔╝███████╗╚██████╔╝╚██████╗██║  ██╗
+ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝
+  </pre>
+  <p class="welcome-subtitle">who is the best bastard?</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<header>
+  <div class="logo" onclick="goHome()">
+    <div class="logo-icon">B</div>
+    <div class="logo-text">BASTARDS <span>DEADLOCK</span></div>
+  </div>
+  <div class="header-right">
+    <div class="search-compact">
+      <input type="text" id="steamInput" placeholder="lookup any player..." />
+      <button id="searchBtn" onclick="lookupPlayer()">go</button>
+    </div>
+    <div class="header-status">
+      <div class="status-dot"></div>
+      live
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- LEADERBOARD VIEW -->
+  <div class="view active" id="viewLeaderboard">
+    <div class="sort-bar">
+      <span class="sort-label">// rank by</span>
+      <button class="sort-btn active" data-sort="wr" onclick="sortLeaderboard('wr', this)">win rate</button>
+      <button class="sort-btn" data-sort="kda" onclick="sortLeaderboard('kda', this)">kda</button>
+      <button class="sort-btn" data-sort="games" onclick="sortLeaderboard('games', this)">games</button>
+      <button class="sort-btn" data-sort="wins" onclick="sortLeaderboard('wins', this)">wins</button>
+      <button class="sort-btn" data-sort="avgK" onclick="sortLeaderboard('avgK', this)">avg kills</button>
+    </div>
+
+    <div class="lb-header">
+      <span>#</span><span></span><span style="text-align:left">player</span><span>wr</span><span>kda</span><span>games</span><span>last 5</span>
+    </div>
+    <div class="leaderboard" id="leaderboard">
+      <div class="lb-loading">
+        <div class="spinner"></div>
+        <div>loading the bastards...</div>
+      </div>
+    </div>
+    <div id="errorMsg" class="error-msg" style="display:none"></div>
+  </div>
+
+  <!-- DETAIL VIEW -->
+  <div class="view" id="viewDetail">
+    <button class="detail-back" onclick="goHome()">&larr; back to leaderboard</button>
+
+    <div class="panel animate-in" id="playerPanel">
+      <div class="panel-title">// player profile</div>
+      <div class="player-card">
+        <div class="player-avatar" id="playerAvatar">B</div>
+        <div class="player-info">
+          <h2 id="playerName">&mdash;</h2>
+          <div class="player-meta" id="playerMeta"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid animate-in" style="margin-bottom:16px">
+      <div class="stat-box win"><div class="stat-value" id="statWins">&mdash;</div><div class="stat-label">wins</div></div>
+      <div class="stat-box loss"><div class="stat-value" id="statLosses">&mdash;</div><div class="stat-label">losses</div></div>
+      <div class="stat-box"><div class="stat-value" id="statWR" style="color:var(--text)">&mdash;</div><div class="stat-label">win rate</div></div>
+      <div class="stat-box"><div class="stat-value" id="statKDA">&mdash;</div><div class="stat-label">avg kda</div></div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('matches', this)">matches</div>
+      <div class="tab" onclick="switchTab('heroes', this)">heroes</div>
+    </div>
+
+    <div id="tabMatches">
+      <div class="match-header-row">
+        <span></span><span>result</span><span>hero</span><span>kda</span><span>duration</span>
+      </div>
+      <div class="match-list" id="matchList"></div>
+    </div>
+
+    <div id="tabHeroes" style="display:none">
+      <div class="hero-top-grid" id="heroTopGrid"></div>
+      <div class="panel">
+        <div class="panel-title">// all heroes played</div>
+        <table class="hero-table">
+          <thead><tr>
+            <th>hero</th><th>games</th><th>win rate</th><th>avg k</th><th>avg d</th><th>avg a</th><th>kda</th>
+          </tr></thead>
+          <tbody id="heroTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  data from api.deadlock-api.com · built for the bastards
+</footer>
+
+<script>
+  const STEAM_BASE = 76561197960265728n;
+
+  const FRIENDS = [
+    { steamid64: '76561198082142599' },
+    { steamid64: '76561198129845864' },
+    { steamid64: '76561198883025382' },
+    { steamid64: '76561198081311496' },
+    { vanity: 'RichPier' },
+    { vanity: 'Volataxx' },
+    { steamid64: '76561199032336440' },
+  ];
+
+  const HERO_NAMES = {
+    1:'Infernus',2:'Seven',3:'Vindicta',4:'Lady Geist',6:'Abrams',7:'Wraith',8:'McGinnis',
+    10:'Paradox',11:'Dynamo',12:'Kelvin',13:'Haze',14:'Holliday',15:'Bebop',16:'Calico',
+    17:'Grey Talon',18:'Mo & Krill',19:'Shiv',20:'Ivy',25:'Warden',27:'Yamato',31:'Lash',
+    35:'Viscous',50:'Pocket',52:'Mirage',58:'Vyper',60:'Sinclair',63:'Mina',64:'Drifter',
+    65:'Venator',66:'Victor',67:'Paige',69:'The Doorman',72:'Billy',76:'Graves',77:'Apollo',
+    79:'Rem',80:'Silver',81:'Celeste',
+  };
+  const HERO_EMOJI = {
+    1:'🔥',2:'⚡',3:'🏹',4:'💀',6:'💪',7:'👻',8:'🔫',10:'⏱',11:'💥',12:'❄️',
+    13:'🌙',14:'🤠',15:'🤖',16:'🐱',17:'🦅',18:'🦟',19:'🗡',20:'🌿',25:'⚖️',
+    27:'⚔️',31:'🪝',35:'🫧',50:'✉️',52:'🌊',58:'🐍',60:'🃏',63:'🩸',64:'🌀',
+    65:'🏹',66:'🎯',67:'📖',69:'🚪',72:'🤖',76:'💀',77:'☀️',79:'💤',80:'🐺',81:'✨',
+  };
+
+  function heroName(id) { return HERO_NAMES[id] || `Hero #${id}`; }
+  function heroEmoji(id) { return HERO_EMOJI[id] || '?'; }
+  function fmtDuration(s) { if (!s) return '—'; return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+  function fmtDate(ts) { if (!ts) return '—'; const d = typeof ts==='number' ? new Date(ts*1000) : new Date(ts); return isNaN(d) ? '—' : d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+  function wrClass(wr) { return wr>=55?'wr-high':wr>=45?'wr-mid':'wr-low'; }
+  function wrColor(wr) { return wr>=55?'var(--win)':wr>=45?'var(--muted)':'var(--loss)'; }
+
+  function parseInput(raw) {
+    const trimmed = raw.trim().replace(/\/+$/, '');
+    const profileMatch = trimmed.match(/steamcommunity\.com\/profiles\/(\d+)/);
+    if (profileMatch) {
+      const id64 = profileMatch[1];
+      return { steamid64: id64, accountId: String(BigInt(id64) - STEAM_BASE) };
+    }
+    const vanityMatch = trimmed.match(/steamcommunity\.com\/id\/([^\/\?]+)/);
+    if (vanityMatch) return { vanity: vanityMatch[1] };
+    if (/^\d{17}$/.test(trimmed) && trimmed.startsWith('7656'))
+      return { steamid64: trimmed, accountId: String(BigInt(trimmed) - STEAM_BASE) };
+    if (/^\d+$/.test(trimmed))
+      return { steamid64: String(BigInt(trimmed) + STEAM_BASE), accountId: trimmed };
+    return { vanity: trimmed };
+  }
+
+  async function fetchSteamProfile(steamidOrVanity) {
+    try {
+      const res = await fetch(`/api/steam-profile?steamid=${encodeURIComponent(steamidOrVanity)}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  }
+
+  async function fetchMatchHistory(accountId) {
+    const res = await fetch(`/api/proxy?endpoint=matches/metadata&account_ids=${accountId}&include_player_kda=true&include_player_info=true&limit=50`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const matches = Array.isArray(data) ? data : (data.matches || data.data || []);
+    const aid = parseInt(accountId);
+    return matches.map(m => {
+      const p = (m.players || []).find(pl => pl.account_id === aid);
+      if (!p) return null;
+      return {
+        match_id: m.match_id, duration_s: m.duration_s, start_time: m.start_time,
+        winning_team: m.winning_team, hero_id: p.hero_id,
+        kills: p.kills||0, deaths: p.deaths||0, assists: p.assists||0,
+        net_worth: p.net_worth, player_team: p.team,
+      };
+    }).filter(Boolean);
+  }
+
+  function computeStats(matches) {
+    let wins=0,losses=0,kills=0,deaths=0,assists=0;
+    for (const m of matches) {
+      m.player_team === m.winning_team ? wins++ : losses++;
+      kills += m.kills; deaths += m.deaths; assists += m.assists;
+    }
+    const t = matches.length;
+    return {
+      wins, losses, total: t,
+      wr: t>0 ? (wins/t)*100 : 0,
+      kda: deaths>0 ? (kills+assists)/deaths : kills+assists,
+      avgK: t>0 ? kills/t : 0, avgD: t>0 ? deaths/t : 0, avgA: t>0 ? assists/t : 0,
+    };
+  }
+
+  function topHero(matches) {
+    const map = {};
+    for (const m of matches) {
+      if (!m.hero_id) continue;
+      map[m.hero_id] = (map[m.hero_id]||0) + 1;
+    }
+    let best = null, max = 0;
+    for (const [id, count] of Object.entries(map)) {
+      if (count > max) { max = count; best = id; }
+    }
+    return best ? { id: parseInt(best), count: max } : null;
+  }
+
+  // ─── Leaderboard ───
+  let bastardData = [];
+  let currentSort = 'wr';
+
+  async function loadLeaderboard() {
+    bastardData = [];
+
+    const promises = FRIENDS.map(async (friend) => {
+      const key = friend.vanity || friend.steamid64;
+      const profile = await fetchSteamProfile(key);
+      const sid64 = profile?.steamid64 || friend.steamid64;
+      if (!sid64) return null;
+      const accountId = String(BigInt(sid64) - STEAM_BASE);
+      const matches = await fetchMatchHistory(accountId);
+      const stats = computeStats(matches);
+      const top = topHero(matches);
+      const last5 = matches.slice(0, 5).map(m => m.player_team === m.winning_team ? 'w' : 'l');
+
+      return {
+        steamid64: sid64, accountId, matches,
+        name: profile?.name || `Account #${accountId}`,
+        avatar: profile?.avatar || null,
+        stats, topHero: top, last5,
+      };
+    });
+
+    const results = await Promise.allSettled(promises);
+    bastardData = results
+      .filter(r => r.status === 'fulfilled' && r.value && r.value.stats.total > 0)
+      .map(r => r.value);
+
+    renderLeaderboard();
+  }
+
+  function sortLeaderboard(key, el) {
+    currentSort = key;
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    renderLeaderboard();
+  }
+
+  function renderLeaderboard() {
+    const sorted = [...bastardData].sort((a, b) => {
+      switch (currentSort) {
+        case 'wr': return b.stats.wr - a.stats.wr;
+        case 'kda': return b.stats.kda - a.stats.kda;
+        case 'games': return b.stats.total - a.stats.total;
+        case 'wins': return b.stats.wins - a.stats.wins;
+        case 'avgK': return b.stats.avgK - a.stats.avgK;
+        default: return b.stats.wr - a.stats.wr;
+      }
+    });
+
+    const lb = document.getElementById('leaderboard');
+    lb.innerHTML = '';
+
+    sorted.forEach((b, i) => {
+      const row = document.createElement('div');
+      row.className = 'lb-row animate-in' + (i === 0 ? ' first' : '');
+      row.style.animationDelay = `${i * 0.05}s`;
+      row.onclick = () => showDetail(b);
+
+      const rankClass = i === 0 ? 'first' : i === 1 ? 'second' : i === 2 ? 'third' : '';
+      const rankText = i === 0 ? '<span class="crown">👑</span>' : `#${i+1}`;
+      const heroText = b.topHero
+        ? `${heroEmoji(b.topHero.id)} ${heroName(b.topHero.id)} (${b.topHero.count})`
+        : '—';
+      const formDots = b.last5.map(r =>
+        `<div class="lb-form-dot ${r}"></div>`
+      ).join('');
+
+      row.innerHTML = `
+        <div class="lb-rank ${rankClass}">${rankText}</div>
+        <div class="lb-avatar">${b.avatar ? `<img src="${b.avatar}" alt="" />` : '?'}</div>
+        <div class="lb-name-col">
+          <div class="lb-name">${b.name}</div>
+          <div class="lb-hero">${heroText}</div>
+        </div>
+        <div>
+          <div class="lb-stat ${wrClass(b.stats.wr)}">${b.stats.wr.toFixed(1)}%</div>
+          <span class="lb-stat-label">wr</span>
+        </div>
+        <div>
+          <div class="lb-stat">${b.stats.kda.toFixed(2)}</div>
+          <span class="lb-stat-label">kda</span>
+        </div>
+        <div>
+          <div class="lb-stat">${b.stats.total}</div>
+          <span class="lb-stat-label">games</span>
+        </div>
+        <div class="lb-form">${formDots}</div>
+      `;
+      lb.appendChild(row);
+    });
+
+    if (sorted.length === 0) {
+      lb.innerHTML = '<div class="lb-loading">no data found for the bastards</div>';
+    }
+  }
+
+  // ─── Detail view ───
+  function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function goHome() {
+    const url = new URL(window.location);
+    url.searchParams.delete('p');
+    window.history.pushState({}, '', url);
+    showView('viewLeaderboard');
+    // Reset tabs
+    document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===0));
+    document.getElementById('tabMatches').style.display = 'block';
+    document.getElementById('tabHeroes').style.display = 'none';
+  }
+
+  function showDetail(b) {
+    const url = new URL(window.location);
+    url.searchParams.set('p', b.steamid64);
+    window.history.pushState({}, '', url);
+
+    document.getElementById('playerName').textContent = b.name;
+    const avatarEl = document.getElementById('playerAvatar');
+    avatarEl.innerHTML = b.avatar ? `<img src="${b.avatar}" alt="" />` : 'B';
+    document.getElementById('playerMeta').innerHTML = `
+      <span class="meta-chip">${b.accountId}</span>
+      <span class="meta-chip">${b.stats.total} matches</span>
+      <button class="share-btn" onclick="event.stopPropagation();copyShareLink('${b.steamid64}')">copy share link</button>
+    `;
+    document.getElementById('statWins').textContent = b.stats.wins;
+    document.getElementById('statLosses').textContent = b.stats.losses;
+    document.getElementById('statWR').textContent = b.stats.wr.toFixed(1) + '%';
+    document.getElementById('statWR').className = 'stat-value ' + wrClass(b.stats.wr);
+    document.getElementById('statKDA').textContent = b.stats.kda.toFixed(2);
+
+    renderMatchList(b.matches);
+    renderHeroStats(computeHeroStats(b.matches));
+
+    // Reset tabs
+    document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===0));
+    document.getElementById('tabMatches').style.display = 'block';
+    document.getElementById('tabHeroes').style.display = 'none';
+
+    showView('viewDetail');
+    window.scrollTo(0, 0);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  function copyShareLink(sid64) {
+    const url = `${window.location.origin}/api/player?id=${sid64}`;
+    navigator.clipboard.writeText(url).then(() => showToast('share link copied!')).catch(() => showToast('failed to copy'));
+  }
+
+  function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.style.display='block'; }
+  function hideError() { document.getElementById('errorMsg').style.display='none'; }
+
+  async function lookupPlayer() {
+    const raw = document.getElementById('steamInput').value.trim();
+    if (!raw) return;
+    hideError();
+    document.getElementById('searchBtn').disabled = true;
+
+    try {
+      const parsed = parseInput(raw);
+      let steamid64 = parsed.steamid64 || null;
+      let accountId = parsed.accountId || null;
+      let profile = null;
+
+      if (parsed.vanity) {
+        profile = await fetchSteamProfile(parsed.vanity);
+        if (!profile?.steamid64) { showError('could not resolve "' + parsed.vanity + '"'); return; }
+        steamid64 = profile.steamid64;
+        accountId = String(BigInt(steamid64) - STEAM_BASE);
+      }
+      if (!profile && steamid64) profile = await fetchSteamProfile(steamid64);
+
+      const matches = await fetchMatchHistory(accountId);
+      if (!matches.length) { showError('no matches found'); return; }
+
+      const stats = computeStats(matches);
+      const top = topHero(matches);
+      const last5 = matches.slice(0,5).map(m => m.player_team === m.winning_team ? 'w' : 'l');
+
+      showDetail({
+        steamid64, accountId, matches,
+        name: profile?.name || `Account #${accountId}`,
+        avatar: profile?.avatar || null,
+        stats, topHero: top, last5,
+      });
+    } catch(e) {
+      showError('error: ' + (e.message || 'unknown'));
+    } finally {
+      document.getElementById('searchBtn').disabled = false;
+    }
+  }
+
+  function computeHeroStats(matches) {
+    const map = {};
+    for (const m of matches) {
+      if (!m.hero_id) continue;
+      if (!map[m.hero_id]) map[m.hero_id] = {hero_id:m.hero_id,games:0,wins:0,kills:0,deaths:0,assists:0};
+      const won = m.player_team === m.winning_team;
+      map[m.hero_id].games++;
+      if (won) map[m.hero_id].wins++;
+      map[m.hero_id].kills += m.kills;
+      map[m.hero_id].deaths += m.deaths;
+      map[m.hero_id].assists += m.assists;
+    }
+    return Object.values(map).sort((a,b) => b.games-a.games);
+  }
+
+  function renderMatchList(matches) {
+    const list = document.getElementById('matchList');
+    list.innerHTML = '';
+    for (const m of matches) {
+      const won = m.player_team === m.winning_team;
+      const row = document.createElement('div');
+      row.className = 'match-row';
+      row.innerHTML = `
+        <div class="match-result-bar ${won?'win':'loss'}"></div>
+        <div>
+          <div class="match-result-text ${won?'win':'loss'}">${won?'victory':'defeat'}</div>
+          <div class="match-time">${fmtDate(m.start_time)}</div>
+        </div>
+        <div>
+          <div class="match-hero">${heroEmoji(m.hero_id)} ${heroName(m.hero_id)}</div>
+          <div class="match-hero-sub">#${String(m.match_id||'').slice(-8)}</div>
+        </div>
+        <div class="match-kda"><span class="k">${m.kills}</span>/<span class="d">${m.deaths}</span>/<span class="a">${m.assists}</span></div>
+        <div class="match-duration">${fmtDuration(m.duration_s)}</div>
+      `;
+      list.appendChild(row);
+    }
+  }
+
+  function renderHeroStats(heroStats) {
+    const grid = document.getElementById('heroTopGrid');
+    grid.innerHTML = '';
+    heroStats.slice(0,3).forEach((h,i) => {
+      const wr = h.games>0 ? ((h.wins/h.games)*100).toFixed(1) : '0.0';
+      const kda = h.deaths>0 ? ((h.kills+h.assists)/h.deaths).toFixed(2) : (h.kills+h.assists).toFixed(2);
+      const card = document.createElement('div');
+      card.className = 'hero-card';
+      card.innerHTML = `
+        <div class="hero-card-rank">#${i+1}</div>
+        <div>
+          <div class="hero-card-name">${heroEmoji(h.hero_id)} ${heroName(h.hero_id)}</div>
+          <div class="hero-card-stats">${h.games}g · <span class="${wrClass(parseFloat(wr))}">${wr}%</span> · ${kda} kda</div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    const tbody = document.getElementById('heroTableBody');
+    tbody.innerHTML = '';
+    heroStats.forEach(h => {
+      const wr = h.games>0 ? ((h.wins/h.games)*100).toFixed(1) : '0.0';
+      const wrF = parseFloat(wr);
+      const kda = h.deaths>0 ? ((h.kills+h.assists)/h.deaths).toFixed(2) : (h.kills+h.assists).toFixed(2);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="hero-name">${heroEmoji(h.hero_id)} ${heroName(h.hero_id)}</td>
+        <td style="color:var(--muted)">${h.games}</td>
+        <td><div class="wr-bar-wrap"><div class="wr-bar"><div class="wr-bar-fill" style="width:${wr}%;background:${wrColor(wrF)}"></div></div><span class="wr-text ${wrClass(wrF)}">${wr}%</span></div></td>
+        <td style="color:var(--win)">${(h.kills/h.games).toFixed(1)}</td>
+        <td style="color:var(--loss)">${(h.deaths/h.games).toFixed(1)}</td>
+        <td style="color:var(--muted)">${(h.assists/h.games).toFixed(1)}</td>
+        <td>${kda}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function switchTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tabMatches').style.display = name==='matches' ? 'block' : 'none';
+    document.getElementById('tabHeroes').style.display = name==='heroes' ? 'block' : 'none';
+  }
+
+  document.getElementById('steamInput').addEventListener('keydown', e => { if (e.key==='Enter') lookupPlayer(); });
+
+  // ─── Welcome Intro ───
+  class WelcomeIntro {
+    constructor(onDone) {
+      this.onDone = onDone;
+      this.overlay = document.getElementById('welcomeOverlay');
+      this.ascii = this.overlay.querySelector('.welcome-ascii');
+      this.sub = this.overlay.querySelector('.welcome-subtitle');
+      this.original = this.ascii.textContent;
+      this.lines = this.original.split('\n');
+      this.noise = ['@','#','$','%','&','*','+','=','~','?','!','/','-','_','.',':',';','<','>','[',']','{','}'];
+      this.start();
+    }
+    rnd() { return this.noise[Math.floor(Math.random()*this.noise.length)]; }
+    noisify() { return this.lines.map(l => l.split('').map(c => c===' '||c==='\n' ? c : this.rnd()).join('')).join('\n'); }
+    async start() {
+      const iv = setInterval(() => { this.ascii.textContent = this.noisify(); }, 50);
+      await this.sleep(500);
+      clearInterval(iv);
+      const total = this.original.length, steps = 50, per = total/steps;
+      for (let i = 0; i < steps; i++) {
+        const revealed = Math.min(total, Math.floor(per*(i+1)));
+        let txt = '', cc = 0;
+        for (let li = 0; li < this.lines.length; li++) {
+          let nl = '';
+          for (let ci = 0; ci < this.lines[li].length; ci++) {
+            nl += cc < revealed ? this.lines[li][ci] : (this.lines[li][ci]===' ' ? ' ' : this.rnd());
+            cc++;
+          }
+          txt += nl + (li < this.lines.length-1 ? '\n' : '');
+          cc++;
+        }
+        this.ascii.textContent = txt;
+        await this.sleep(1200/steps);
+      }
+      this.ascii.textContent = this.original;
+      await this.sleep(250);
+      this.sub.style.opacity = '0.85';
+      await this.sleep(1000);
+      this.overlay.classList.add('fade-out');
+      await this.sleep(800);
+      this.overlay.classList.add('hidden');
+      if (this.onDone) this.onDone();
+    }
+    sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  }
+
+  // ─── Init ───
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get('p');
+
+    new WelcomeIntro(() => {
+      if (pid) {
+        document.getElementById('steamInput').value = pid;
+        lookupPlayer();
+      } else {
+        loadLeaderboard();
+      }
+    });
+  });
+
+  window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get('p');
+    if (pid) {
+      document.getElementById('steamInput').value = pid;
+      lookupPlayer();
+    } else {
+      showView('viewLeaderboard');
+    }
+  });
+</script>
+</body>
+</html>
