@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
   // Try to get basic stats
   try {
-    const statsUrl = `https://api.deadlock-api.com/v1/matches/metadata?account_ids=${accountId}&include_player_kda=true&include_player_info=true&limit=50`;
+    const statsUrl = `https://api.deadlock-api.com/v1/matches/metadata?account_ids=${accountId}&include_player_kda=true&include_player_info=true`;
     const statsRes = await fetch(statsUrl, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'deadlock-tracker/1.0' }
     });
