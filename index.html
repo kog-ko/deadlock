@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bastards deadlock</title>
+  <meta property="og:title" content="bastards deadlock" />
+  <meta property="og:description" content="track your stats, master the lanes" />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#222222" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #222222;
+      --surface: rgba(10,87,85,0.25);
+      --panel: rgba(10,87,85,0.25);
+      --border: rgba(225,248,207,0.2);
+      --teal: #0a5755;
+      --accent: #e1f8cf;
+      --accent2: #d5141e;
+      --text: #e1f8cf;
+      --muted: rgba(225,248,207,0.5);
+      --win: #e1f8cf;
+      --loss: #d5141e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(225,248,207,0.03) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(10,87,85,0.05) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Welcome overlay */
+    .welcome-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--bg); z-index: 9999;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      opacity: 1; transition: opacity 0.8s ease-out;
+    }
+    .welcome-overlay.fade-out { opacity: 0; pointer-events: none; }
+    .welcome-overlay.hidden { display: none; }
+    .welcome-ascii {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(0.2rem, 0.85vw, 0.6rem);
+      color: var(--text);
+      text-shadow: 0 0 20px rgba(225,248,207,0.8);
+      text-align: left; line-height: 1.15;
+      display: inline-block; max-width: 95vw; overflow: hidden;
+      white-space: pre;
+    }
+    .welcome-overlay .welcome-subtitle {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;
+      color: var(--text); text-align: center;
+      margin-top: 1.5rem; font-weight: 400;
+      opacity: 0; transition: opacity 0.5s ease-in;
+      letter-spacing: 0.1em;
+    }
+
+    /* Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px;
+      background: var(--surface);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      position: relative; z-index: 10;
+    }
+    .logo { display: flex; align-items: center; gap: 14px; }
+    .logo-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: var(--teal); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--text);
+    }
+    .logo-text { font-size: 18px; font-weight: 700; letter-spacing: 3px; color: var(--text); }
+    .logo-text span { color: var(--accent2); }
+    .header-status {
+      display: flex; gap: 8px; align-items: center;
+      font-size: 11px; color: var(--muted);
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--win); box-shadow: 0 0 8px rgba(225,248,207,0.5);
+      animation: blink 1.5s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+    /* Main content */
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; position: relative; z-index: 10; }
+
+    /* Search */
+    .search-section { margin-bottom: 32px; }
+    .search-label {
+      font-size: 11px; letter-spacing: 1px; color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .search-row { display: flex; gap: 10px; }
+    .search-input {
+      flex: 1;
+      background: var(--text); color: var(--teal);
+      font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      padding: 12px 16px; border: 1px solid var(--teal);
+      border-radius: 8px; outline: none;
+      transition: all 0.2s;
+    }
+    .search-input:focus { border-color: var(--accent2); box-shadow: 0 0 0 2px rgba(213,20,30,0.15); }
+    .search-input::placeholder { color: var(--teal); opacity: 0.6; }
+    .btn {
+      background: var(--accent2); border: 1px solid var(--accent2); color: var(--text);
+      font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; letter-spacing: 1px;
+      padding: 12px 24px; cursor: pointer; transition: all 0.2s;
+      border-radius: 8px; white-space: nowrap;
+    }
+    .btn:hover { background: #b71119; border-color: #b71119; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(213,20,30,0.4); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* Friends grid */
+    .friends-section { margin-bottom: 32px; }
+    .friends-label {
+      font-size: 11px; letter-spacing: 1px; color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .friends-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+    .friend-btn {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px; cursor: pointer; transition: all 0.2s;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      color: var(--text);
+    }
+    .friend-btn:hover { border-color: var(--text); background: rgba(10,87,85,0.4); transform: translateY(-1px); }
+    .friend-btn img {
+      width: 32px; height: 32px; border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .friend-btn .friend-placeholder {
+      width: 32px; height: 32px; border-radius: 6px;
+      background: var(--teal); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--muted); flex-shrink: 0;
+    }
+    .friend-btn .friend-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .friend-btn .friend-loading { color: var(--muted); font-size: 11px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .tab {
+      padding: 10px 22px; font-size: 12px; font-weight: 600; letter-spacing: 1px;
+      color: var(--muted); cursor: pointer;
+      border-bottom: 2px solid transparent; transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+    /* Panels */
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 20px 24px; position: relative; margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(225,248,207,0.05), 0 8px 24px rgba(10,87,85,0.15);
+    }
+    .panel-title {
+      font-size: 11px; letter-spacing: 1px; color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* Player card */
+    .player-card { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center; }
+    .player-avatar {
+      width: 72px; height: 72px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; overflow: hidden;
+    }
+    .player-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+    .player-info h2 { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: 1px; }
+    .player-meta { display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
+    .meta-chip {
+      font-size: 11px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 10px;
+    }
+    .share-btn {
+      font-size: 11px; color: var(--accent2); background: rgba(213,20,30,0.1);
+      border: 1px solid rgba(213,20,30,0.3); border-radius: 6px; padding: 3px 10px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .share-btn:hover { background: rgba(213,20,30,0.2); }
+    .player-rank { text-align: right; }
+    .rank-value {
+      font-size: 32px; font-weight: 700; color: var(--text);
+      line-height: 1; text-shadow: 0 0 20px rgba(225,248,207,0.3);
+    }
+    .rank-label { font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+
+    /* Stat boxes */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    @media (max-width: 700px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .player-card { grid-template-columns: auto 1fr; }
+      .player-rank { display: none; }
+    }
+    .stat-box {
+      background: var(--surface);
+      backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px; text-align: center;
+      transition: all 0.2s; cursor: default;
+    }
+    .stat-box:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(10,87,85,0.3); }
+    .stat-value { font-size: 24px; font-weight: 700; color: var(--text); line-height: 1; }
+    .stat-label { font-size: 10px; letter-spacing: 1px; color: var(--muted); margin-top: 6px; }
+    .stat-box.win .stat-value { color: var(--win); }
+    .stat-box.loss .stat-value { color: var(--loss); }
+    .stat-box.kda .stat-value { color: var(--text); }
+
+    /* Match list */
+    .match-list { display: flex; flex-direction: column; gap: 6px; }
+    .match-row {
+      display: grid; grid-template-columns: 6px 100px 1fr 80px 100px 100px; gap: 12px;
+      align-items: center;
+      background: var(--surface);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px; transition: all 0.2s; cursor: default;
+    }
+    .match-row:hover { transform: translateY(-1px); border-color: rgba(225,248,207,0.35); box-shadow: 0 4px 12px rgba(10,87,85,0.2); }
+    .match-result-bar { width: 6px; height: 36px; border-radius: 3px; }
+    .match-result-bar.win { background: var(--win); box-shadow: 0 0 8px rgba(225,248,207,0.4); }
+    .match-result-bar.loss { background: var(--loss); box-shadow: 0 0 8px rgba(213,20,30,0.4); }
+    .match-result-text { font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+    .match-result-text.win { color: var(--win); }
+    .match-result-text.loss { color: var(--loss); }
+    .match-time { font-size: 11px; color: var(--muted); }
+    .match-hero { font-weight: 600; font-size: 14px; color: var(--text); }
+    .match-hero-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+    .match-kda { font-size: 13px; text-align: center; }
+    .match-kda .k { color: var(--win); }
+    .match-kda .d { color: var(--loss); }
+    .match-kda .a { color: var(--muted); }
+    .match-duration { font-size: 12px; color: var(--muted); text-align: right; }
+    .match-id { font-size: 10px; color: var(--muted); text-align: right; opacity: 0.5; }
+
+    /* Hero table */
+    .hero-table { width: 100%; border-collapse: collapse; }
+    .hero-table th {
+      font-size: 10px; letter-spacing: 1px; color: var(--muted);
+      text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+    }
+    .hero-table td { padding: 10px; font-size: 13px; border-bottom: 1px solid rgba(225,248,207,0.08); }
+    .hero-table tr:hover td { background: rgba(10,87,85,0.15); }
+    .hero-table .hero-name { font-weight: 600; color: var(--text); }
+    .wr-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .wr-bar { flex: 1; height: 4px; background: rgba(225,248,207,0.1); border-radius: 2px; overflow: hidden; }
+    .wr-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .wr-text { font-size: 12px; width: 44px; }
+
+    /* State boxes */
+    .state-box { text-align: center; padding: 60px 20px; color: var(--muted); }
+    .state-box .icon { font-size: 48px; display: block; margin-bottom: 16px; opacity: 0.3; }
+    .state-box h3 { font-size: 16px; letter-spacing: 2px; margin-bottom: 8px; color: var(--text); }
+    .state-box p { font-size: 12px; }
+    .spinner {
+      display: inline-block; width: 32px; height: 32px;
+      border: 2px solid var(--border); border-top-color: var(--accent2);
+      border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg {
+      background: rgba(213,20,30,0.1); border: 1px solid rgba(213,20,30,0.3);
+      color: var(--loss); font-size: 12px;
+      padding: 12px 16px; margin-top: 12px; border-radius: 8px;
+    }
+
+    /* Hero cards */
+    .hero-top-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    @media (max-width: 600px) { .hero-top-grid { grid-template-columns: 1fr; } }
+    .hero-card {
+      background: var(--surface);
+      backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+      transition: all 0.2s;
+    }
+    .hero-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(10,87,85,0.3); }
+    .hero-card-rank { font-size: 20px; color: var(--text); min-width: 28px; }
+    .hero-card-name { font-weight: 600; font-size: 14px; color: var(--text); }
+    .hero-card-stats { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* Match header row */
+    .match-header-row { display: grid; grid-template-columns: 6px 100px 1fr 80px 100px 100px; gap: 12px; padding: 0 14px 8px; }
+    .match-header-row span { font-size: 10px; letter-spacing: 1px; color: var(--muted); }
+
+    .view { display: none; }
+    .view.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.3s ease forwards; }
+
+    .wr-high { color: var(--win); }
+    .wr-mid  { color: var(--muted); }
+    .wr-low  { color: var(--loss); }
+
+    footer {
+      text-align: center; padding: 24px;
+      font-size: 10px;
+      color: var(--text); letter-spacing: 1px;
+      border-top: 1px solid var(--border); margin-top: 40px;
+      opacity: 0.4;
+      position: relative; z-index: 10;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: var(--teal); color: var(--text); border: 1px solid var(--border);
+      padding: 10px 20px; border-radius: 8px; font-size: 12px;
+      transition: transform 0.3s ease; z-index: 9999; pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header { padding: 12px 16px; }
+      main { padding: 20px 12px; }
+      .search-row { flex-direction: column; }
+      .btn { width: 100%; }
+      .match-row { grid-template-columns: 6px 80px 1fr 70px; gap: 8px; }
+      .match-duration, .match-id { display: none; }
+      .match-header-row { grid-template-columns: 6px 80px 1fr 70px; gap: 8px; }
+      .match-header-row span:nth-child(5),
+      .match-header-row span:nth-child(6) { display: none; }
+      .welcome-ascii { font-size: clamp(0.1rem, 1vw, 0.3rem); }
+      .friends-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Welcome overlay -->
+<div class="welcome-overlay" id="welcomeOverlay">
+  <pre class="welcome-ascii">
+ ██████╗  █████╗ ███████╗████████╗ █████╗ ██████╗ ██████╗ ███████╗
+ ██╔══██╗██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██╔════╝
+ ██████╔╝███████║███████╗   ██║   ███████║██████╔╝██║  ██║███████╗
+ ██╔══██╗██╔══██║╚════██║   ██║   ██╔══██║██╔══██╗██║  ██║╚════██║
+ ██████╔╝██║  ██║███████║   ██║   ██║  ██║██║  ██║██████╔╝███████║
+ ╚═════╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝
+
+ ██████╗ ███████╗ █████╗ ██████╗ ██╗      ██████╗  ██████╗██╗  ██╗
+ ██╔══██╗██╔════╝██╔══██╗██╔══██╗██║     ██╔═══██╗██╔════╝██║ ██╔╝
+ ██║  ██║█████╗  ███████║██║  ██║██║     ██║   ██║██║     █████╔╝
+ ██║  ██║██╔══╝  ██╔══██║██║  ██║██║     ██║   ██║██║     ██╔═██╗
+ ██████╔╝███████╗██║  ██║██████╔╝███████╗╚██████╔╝╚██████╗██║  ██╗
+ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝
+  </pre>
+  <p class="welcome-subtitle">track your stats, master the lanes</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">B</div>
+    <div class="logo-text">BASTARDS <span>DEADLOCK</span></div>
+  </div>
+  <div class="header-status">
+    <div class="status-dot"></div>
+    api.deadlock-api.com
+  </div>
+</header>
+
+<main>
+  <div class="search-section">
+    <div class="search-label">// steam url, vanity name, 64-bit id, or 32-bit id</div>
+    <div class="search-row">
+      <input class="search-input" type="text" id="steamInput" placeholder="steam url, vanity name, 64-bit id, or 32-bit id" />
+      <button class="btn" id="searchBtn" onclick="lookupPlayer()">search</button>
+    </div>
+    <div id="errorMsg" class="error-msg" style="display:none"></div>
+  </div>
+
+  <div class="friends-section" id="friendsSection">
+    <div class="friends-label">// the bastards</div>
+    <div class="friends-grid" id="friendsGrid"></div>
+  </div>
+
+  <div class="view" id="viewWelcome"></div>
+
+  <div class="view" id="viewLoading">
+    <div class="state-box">
+      <div class="spinner"></div>
+      <h3>fetching data</h3>
+      <p id="loadingMsg">contacting deadlock api...</p>
+    </div>
+  </div>
+
+  <div class="view" id="viewResults">
+    <div class="panel animate-in" id="playerPanel">
+      <div class="panel-title">// player profile</div>
+      <div class="player-card">
+        <div class="player-avatar" id="playerAvatar">B</div>
+        <div class="player-info">
+          <h2 id="playerName">&mdash;</h2>
+          <div class="player-meta" id="playerMeta"></div>
+        </div>
+        <div class="player-rank">
+          <div class="rank-value" id="playerRank">&mdash;</div>
+          <div class="rank-label">mmr rank</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid animate-in" style="margin-bottom:16px">
+      <div class="stat-box win"><div class="stat-value" id="statWins">&mdash;</div><div class="stat-label">wins</div></div>
+      <div class="stat-box loss"><div class="stat-value" id="statLosses">&mdash;</div><div class="stat-label">losses</div></div>
+      <div class="stat-box"><div class="stat-value" id="statWR" style="color:var(--text)">&mdash;</div><div class="stat-label">win rate</div></div>
+      <div class="stat-box kda"><div class="stat-value" id="statKDA">&mdash;</div><div class="stat-label">avg kda</div></div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('matches', this)">match history</div>
+      <div class="tab" onclick="switchTab('heroes', this)">hero stats</div>
+    </div>
+
+    <div id="tabMatches">
+      <div class="match-header-row">
+        <span></span><span>result</span><span>hero</span><span>kda</span><span>duration</span><span>match id</span>
+      </div>
+      <div class="match-list" id="matchList"></div>
+    </div>
+
+    <div id="tabHeroes" style="display:none">
+      <div class="hero-top-grid" id="heroTopGrid"></div>
+      <div class="panel">
+        <div class="panel-title">// all heroes played</div>
+        <table class="hero-table">
+          <thead><tr>
+            <th>hero</th><th>games</th><th>win rate</th><th>avg k</th><th>avg d</th><th>avg a</th><th>avg kda</th>
+          </tr></thead>
+          <tbody id="heroTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  data provided by api.deadlock-api.com · built for the bastards · no affiliation with valve
+</footer>
+
+<script>
+  const STEAM_BASE = 76561197960265728n;
+
+  // ─── Friends list ───
+  const FRIENDS = [
+    { steamid64: '76561198082142599' },
+    { steamid64: '76561198129845864' },
+    { steamid64: '76561198883025382' },
+    { steamid64: '76561198081311496' },
+    { vanity: 'RichPier' },
+    { vanity: 'Volataxx' },
+    { steamid64: '76561199032336440' },
+  ];
+
+  const HERO_NAMES = {
+    1:'Infernus',2:'Seven',3:'Vindicta',4:'Lady Geist',6:'Abrams',7:'Wraith',8:'McGinnis',
+    10:'Paradox',11:'Dynamo',12:'Kelvin',13:'Haze',14:'Holliday',15:'Bebop',16:'Calico',
+    17:'Grey Talon',18:'Mo & Krill',19:'Shiv',20:'Ivy',25:'Warden',27:'Yamato',31:'Lash',
+    35:'Viscous',50:'Pocket',52:'Mirage',58:'Vyper',60:'Sinclair',63:'Mina',64:'Drifter',
+    65:'Venator',66:'Victor',67:'Paige',69:'The Doorman',72:'Billy',76:'Graves',77:'Apollo',
+    79:'Rem',80:'Silver',81:'Celeste',
+  };
+  const HERO_EMOJI = {
+    1:'🔥',2:'⚡',3:'🏹',4:'💀',6:'💪',7:'👻',8:'🔫',10:'⏱',11:'💥',12:'❄️',
+    13:'🌙',14:'🤠',15:'🤖',16:'🐱',17:'🦅',18:'🦟',19:'🗡',20:'🌿',25:'⚖️',
+    27:'⚔️',31:'🪝',35:'🫧',50:'✉️',52:'🌊',58:'🐍',60:'🃏',63:'🩸',64:'🌀',
+    65:'🏹',66:'🎯',67:'📖',69:'🚪',72:'🤖',76:'💀',77:'☀️',79:'💤',80:'🐺',81:'✨',
+  };
+
+  function heroName(id) { return HERO_NAMES[id] || `Hero #${id}`; }
+  function heroEmoji(id) { return HERO_EMOJI[id] || '?'; }
+  function fmtDuration(s) { if (!s) return '—'; return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+  function fmtDate(ts) { if (!ts) return '—'; const d = typeof ts==='number' ? new Date(ts*1000) : new Date(ts); return isNaN(d) ? '—' : d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+  function wrClass(wr) { return wr>=55?'wr-high':wr>=45?'wr-mid':'wr-low'; }
+  function wrColor(wr) { return wr>=55?'var(--win)':wr>=45?'var(--muted)':'var(--loss)'; }
+
+  function parseInput(raw) {
+    const trimmed = raw.trim().replace(/\/+$/, '');
+    const profileMatch = trimmed.match(/steamcommunity\.com\/profiles\/(\d+)/);
+    if (profileMatch) {
+      const id64 = profileMatch[1];
+      const accountId = String(BigInt(id64) - STEAM_BASE);
+      return { steamid64: id64, accountId };
+    }
+    const vanityMatch = trimmed.match(/steamcommunity\.com\/id\/([^\/\?]+)/);
+    if (vanityMatch) return { vanity: vanityMatch[1] };
+    if (/^\d{17}$/.test(trimmed) && trimmed.startsWith('7656')) {
+      const accountId = String(BigInt(trimmed) - STEAM_BASE);
+      return { steamid64: trimmed, accountId };
+    }
+    if (/^\d+$/.test(trimmed)) {
+      const id64 = String(BigInt(trimmed) + STEAM_BASE);
+      return { steamid64: id64, accountId: trimmed };
+    }
+    return { vanity: trimmed };
+  }
+
+  async function fetchSteamProfile(steamidOrVanity) {
+    const res = await fetch(`/api/steam-profile?steamid=${encodeURIComponent(steamidOrVanity)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  }
+
+  function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+  function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.style.display='block'; }
+  function hideError() { document.getElementById('errorMsg').style.display='none'; }
+  function setLoading(msg) { document.getElementById('loadingMsg').textContent=msg; showView('viewLoading'); }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  function quickSearch(id) { document.getElementById('steamInput').value=id; lookupPlayer(); }
+
+  // Track current player for sharing
+  let currentPlayerSteamId64 = null;
+
+  async function lookupPlayer() {
+    const raw = document.getElementById('steamInput').value.trim();
+    if (!raw) { showError('please enter a steam id, url, or vanity name'); return; }
+    hideError();
+    document.getElementById('searchBtn').disabled = true;
+
+    try {
+      const parsed = parseInput(raw);
+      let steamid64 = parsed.steamid64 || null;
+      let accountId = parsed.accountId || null;
+      let profile = null;
+
+      if (parsed.vanity) {
+        setLoading('resolving steam vanity url...');
+        profile = await fetchSteamProfile(parsed.vanity);
+        if (!profile || !profile.steamid64) {
+          showView('viewWelcome');
+          showError('could not resolve steam vanity url "' + parsed.vanity + '"');
+          return;
+        }
+        steamid64 = profile.steamid64;
+        accountId = String(BigInt(steamid64) - STEAM_BASE);
+      }
+
+      if (!profile && steamid64) {
+        setLoading('fetching steam profile...');
+        profile = await fetchSteamProfile(steamid64);
+      }
+
+      setLoading('fetching match history...');
+      const history = await fetchMatchHistory(accountId);
+      if (!history || history.length === 0) {
+        showView('viewWelcome');
+        showError('no matches found. player may have opted out of data collection or has no recorded matches.');
+        return;
+      }
+      setLoading('computing statistics...');
+      await new Promise(r => setTimeout(r, 80));
+      currentPlayerSteamId64 = steamid64;
+      // Update URL without reload
+      const url = new URL(window.location);
+      url.searchParams.set('p', steamid64);
+      window.history.pushState({}, '', url);
+      renderResults(accountId, history, profile, steamid64);
+      showView('viewResults');
+      // Hide friends section when viewing a player
+      document.getElementById('friendsSection').style.display = 'none';
+    } catch(e) {
+      showView('viewWelcome');
+      showError('error: ' + (e.message || 'unknown error'));
+    } finally {
+      document.getElementById('searchBtn').disabled = false;
+    }
+  }
+
+  async function fetchMatchHistory(accountId) {
+    const res = await fetch(`/api/proxy?endpoint=matches/metadata&account_ids=${accountId}&include_player_kda=true&include_player_info=true&limit=50`);
+    if (res.status === 404) throw new Error('player not found (404)');
+    if (res.status === 429) throw new Error('rate limited — wait a moment and retry');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const matches = Array.isArray(data) ? data : (data.matches || data.data || []);
+    const aid = parseInt(accountId);
+    return matches.map(m => {
+      const p = (m.players || []).find(pl => pl.account_id === aid);
+      if (!p) return null;
+      return {
+        match_id: m.match_id,
+        duration_s: m.duration_s,
+        start_time: m.start_time,
+        match_mode: m.match_mode,
+        winning_team: m.winning_team,
+        hero_id: p.hero_id,
+        kills: p.kills,
+        deaths: p.deaths,
+        assists: p.assists,
+        net_worth: p.net_worth,
+        last_hits: p.last_hits,
+        denies: p.denies,
+        player_team: p.team,
+        player_level: p.player_level,
+      };
+    }).filter(Boolean);
+  }
+
+  function computeStats(matches) {
+    let wins=0,losses=0,kills=0,deaths=0,assists=0;
+    for (const m of matches) {
+      const won = m.player_team === m.winning_team;
+      won ? wins++ : losses++;
+      kills   += m.kills   || 0;
+      deaths  += m.deaths  || 0;
+      assists += m.assists || 0;
+    }
+    const t = matches.length;
+    return {
+      wins, losses, total: t,
+      wr:   t>0 ? ((wins/t)*100).toFixed(1) : '0.0',
+      kda:  deaths>0 ? ((kills+assists)/deaths).toFixed(2) : (kills+assists).toFixed(2),
+      avgK: t>0 ? (kills/t).toFixed(1)   : '0.0',
+      avgD: t>0 ? (deaths/t).toFixed(1)  : '0.0',
+      avgA: t>0 ? (assists/t).toFixed(1) : '0.0',
+    };
+  }
+
+  function computeHeroStats(matches) {
+    const map = {};
+    for (const m of matches) {
+      const hid = m.hero_id; if (!hid) continue;
+      if (!map[hid]) map[hid] = {hero_id:hid,games:0,wins:0,kills:0,deaths:0,assists:0};
+      const won = m.player_team === m.winning_team;
+      map[hid].games++;
+      if (won) map[hid].wins++;
+      map[hid].kills   += m.kills   || 0;
+      map[hid].deaths  += m.deaths  || 0;
+      map[hid].assists += m.assists || 0;
+    }
+    return Object.values(map).sort((a,b) => b.games-a.games);
+  }
+
+  function getShareUrl(steamid64) {
+    return `${window.location.origin}/api/player?id=${steamid64}`;
+  }
+
+  function copyShareLink(steamid64) {
+    const url = getShareUrl(steamid64);
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('share link copied!');
+    }).catch(() => {
+      showToast('failed to copy');
+    });
+  }
+
+  function renderResults(accountId, matches, profile, steamid64) {
+    const name = profile?.name || `Account #${accountId}`;
+    document.getElementById('playerName').textContent = name;
+    const avatarEl = document.getElementById('playerAvatar');
+    if (profile?.avatar) {
+      avatarEl.innerHTML = `<img src="${profile.avatar}" alt="" />`;
+    } else {
+      avatarEl.textContent = 'B';
+    }
+    document.getElementById('playerMeta').innerHTML = `
+      <span class="meta-chip">${accountId}</span>
+      <span class="meta-chip">${matches.length} matches</span>
+      ${steamid64 ? `<button class="share-btn" onclick="copyShareLink('${steamid64}')">copy share link</button>` : ''}
+    `;
+    document.getElementById('playerRank').textContent = '—';
+
+    const s = computeStats(matches);
+    document.getElementById('statWins').textContent   = s.wins;
+    document.getElementById('statLosses').textContent = s.losses;
+    document.getElementById('statWR').textContent     = s.wr + '%';
+    document.getElementById('statKDA').textContent    = s.kda;
+    document.getElementById('statWR').className = 'stat-value ' + wrClass(parseFloat(s.wr));
+
+    renderMatchList(matches);
+    renderHeroStats(computeHeroStats(matches));
+  }
+
+  function renderMatchList(matches) {
+    const list = document.getElementById('matchList');
+    list.innerHTML = '';
+    for (const m of matches) {
+      const won     = m.player_team === m.winning_team;
+      const hid     = m.hero_id;
+      const kills   = m.kills   || 0;
+      const deaths  = m.deaths  || 0;
+      const assists = m.assists || 0;
+      const dur     = m.duration_s || 0;
+      const ts      = m.start_time || null;
+      const mid     = m.match_id || '—';
+      const row = document.createElement('div');
+      row.className = 'match-row animate-in';
+      row.innerHTML = `
+        <div class="match-result-bar ${won?'win':'loss'}"></div>
+        <div>
+          <div class="match-result-text ${won?'win':'loss'}">${won?'victory':'defeat'}</div>
+          <div class="match-time">${fmtDate(ts)}</div>
+        </div>
+        <div>
+          <div class="match-hero">${heroEmoji(hid)} ${heroName(hid)}</div>
+          <div class="match-hero-sub">match ${mid}</div>
+        </div>
+        <div class="match-kda"><span class="k">${kills}</span> / <span class="d">${deaths}</span> / <span class="a">${assists}</span></div>
+        <div class="match-duration">${fmtDuration(dur)}</div>
+        <div class="match-id">#${String(mid).slice(-8)}</div>
+      `;
+      list.appendChild(row);
+    }
+  }
+
+  function renderHeroStats(heroStats) {
+    const grid = document.getElementById('heroTopGrid');
+    grid.innerHTML = '';
+    heroStats.slice(0,3).forEach((h,i) => {
+      const wr  = h.games>0 ? ((h.wins/h.games)*100).toFixed(1) : '0.0';
+      const kda = h.deaths>0 ? ((h.kills+h.assists)/h.deaths).toFixed(2) : (h.kills+h.assists).toFixed(2);
+      const card = document.createElement('div');
+      card.className = 'hero-card animate-in';
+      card.innerHTML = `
+        <div class="hero-card-rank">#${i+1}</div>
+        <div>
+          <div class="hero-card-name">${heroEmoji(h.hero_id)} ${heroName(h.hero_id)}</div>
+          <div class="hero-card-stats">${h.games} games · <span class="${wrClass(parseFloat(wr))}">${wr}% wr</span> · ${kda} kda</div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    const tbody = document.getElementById('heroTableBody');
+    tbody.innerHTML = '';
+    heroStats.forEach(h => {
+      const wr  = h.games>0 ? ((h.wins/h.games)*100).toFixed(1) : '0.0';
+      const wrF = parseFloat(wr);
+      const kda = h.deaths>0 ? ((h.kills+h.assists)/h.deaths).toFixed(2) : (h.kills+h.assists).toFixed(2);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="hero-name">${heroEmoji(h.hero_id)} ${heroName(h.hero_id)}</td>
+        <td style="color:var(--muted)">${h.games}</td>
+        <td><div class="wr-bar-wrap"><div class="wr-bar"><div class="wr-bar-fill" style="width:${wr}%;background:${wrColor(wrF)}"></div></div><span class="wr-text ${wrClass(wrF)}">${wr}%</span></div></td>
+        <td style="color:var(--win)">${(h.kills/h.games).toFixed(1)}</td>
+        <td style="color:var(--loss)">${(h.deaths/h.games).toFixed(1)}</td>
+        <td style="color:var(--muted)">${(h.assists/h.games).toFixed(1)}</td>
+        <td style="color:var(--text)">${kda}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function switchTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tabMatches').style.display = name==='matches' ? 'block' : 'none';
+    document.getElementById('tabHeroes').style.display  = name==='heroes'  ? 'block' : 'none';
+  }
+
+  document.getElementById('steamInput').addEventListener('keydown', e => { if (e.key==='Enter') lookupPlayer(); });
+
+  // ─── Welcome Intro Animation ───
+  class WelcomeIntro {
+    constructor() {
+      this.welcomeOverlay = document.getElementById('welcomeOverlay');
+      this.asciiElement = this.welcomeOverlay.querySelector('.welcome-ascii');
+      this.subtitleElement = this.welcomeOverlay.querySelector('.welcome-subtitle');
+      this.originalText = this.asciiElement.textContent;
+      this.lines = this.originalText.split('\n');
+      this.noiseChars = ['@', '#', '$', '%', '&', '*', '+', '=', '~', '?', '!', '/', '\\', '|', '-', '_', '.', ':', ';', '<', '>', '[', ']', '{', '}'];
+      this.start();
+    }
+    getRandomChar() {
+      return this.noiseChars[Math.floor(Math.random() * this.noiseChars.length)];
+    }
+    generateNoise() {
+      return this.lines.map(line => {
+        return line.split('').map(char => {
+          return char === ' ' || char === '\n' ? char : this.getRandomChar();
+        }).join('');
+      }).join('\n');
+    }
+    async start() {
+      const noiseInterval = setInterval(() => {
+        this.asciiElement.textContent = this.generateNoise();
+      }, 50);
+      await this.sleep(500);
+      clearInterval(noiseInterval);
+
+      const totalChars = this.originalText.length;
+      const steps = 60;
+      const charsPerStep = totalChars / steps;
+      const revealDuration = 1500;
+      for (let i = 0; i < steps; i++) {
+        const revealedChars = Math.min(totalChars, Math.floor(charsPerStep * (i + 1)));
+        let currentText = '';
+        let charCount = 0;
+        for (let lineIdx = 0; lineIdx < this.lines.length; lineIdx++) {
+          const line = this.lines[lineIdx];
+          let newLine = '';
+          for (let charIdx = 0; charIdx < line.length; charIdx++) {
+            if (charCount < revealedChars) {
+              newLine += line[charIdx];
+            } else {
+              newLine += line[charIdx] === ' ' ? ' ' : this.getRandomChar();
+            }
+            charCount++;
+          }
+          currentText += newLine + (lineIdx < this.lines.length - 1 ? '\n' : '');
+          charCount++;
+        }
+        this.asciiElement.textContent = currentText;
+        await this.sleep(revealDuration / steps);
+      }
+
+      this.asciiElement.textContent = this.originalText;
+      await this.sleep(300);
+      this.subtitleElement.style.opacity = '0.85';
+      await this.sleep(1200);
+      this.welcomeOverlay.classList.add('fade-out');
+      await this.sleep(800);
+      this.welcomeOverlay.classList.add('hidden');
+    }
+    sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+  }
+
+  // ─── Friends Grid ───
+  async function loadFriendsGrid() {
+    const grid = document.getElementById('friendsGrid');
+    grid.innerHTML = '';
+
+    for (const friend of FRIENDS) {
+      const btn = document.createElement('button');
+      btn.className = 'friend-btn';
+      btn.innerHTML = `<div class="friend-placeholder">?</div><span class="friend-loading">loading...</span>`;
+      grid.appendChild(btn);
+
+      // Resolve profile in background
+      (async () => {
+        try {
+          const key = friend.vanity || friend.steamid64;
+          const profile = await fetchSteamProfile(key);
+          if (profile) {
+            const sid64 = profile.steamid64 || friend.steamid64;
+            const name = profile.name || `Account`;
+            const avatar = profile.avatar || '';
+            btn.innerHTML = avatar
+              ? `<img src="${avatar}" alt="" /><span class="friend-name">${name}</span>`
+              : `<div class="friend-placeholder">?</div><span class="friend-name">${name}</span>`;
+            btn.onclick = () => {
+              document.getElementById('steamInput').value = sid64;
+              lookupPlayer();
+            };
+          } else {
+            const fallback = friend.steamid64 || friend.vanity;
+            btn.innerHTML = `<div class="friend-placeholder">?</div><span class="friend-name">${fallback}</span>`;
+            btn.onclick = () => {
+              document.getElementById('steamInput').value = fallback;
+              lookupPlayer();
+            };
+          }
+        } catch(e) {
+          const fallback = friend.steamid64 || friend.vanity;
+          btn.innerHTML = `<div class="friend-placeholder">?</div><span class="friend-name">${fallback}</span>`;
+          btn.onclick = () => {
+            document.getElementById('steamInput').value = fallback;
+            lookupPlayer();
+          };
+        }
+      })();
+    }
+  }
+
+  // ─── Init ───
+  document.addEventListener('DOMContentLoaded', () => {
+    new WelcomeIntro();
+    loadFriendsGrid();
+
+    // Check for ?p= param to auto-load a player
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get('p');
+    if (pid) {
+      document.getElementById('steamInput').value = pid;
+      // Wait for intro to finish before loading
+      setTimeout(() => lookupPlayer(), 3200);
+    }
+  });
+
+  // Handle browser back/forward
+  window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get('p');
+    if (pid) {
+      document.getElementById('steamInput').value = pid;
+      lookupPlayer();
+    } else {
+      showView('viewWelcome');
+      document.getElementById('friendsSection').style.display = '';
+    }
+  });
+</script>
+</body>
+</html>

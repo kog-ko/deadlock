@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm root:*)",
+      "WebFetch(domain:api.deadlock-api.com)",
+      "WebFetch(domain:assets.deadlock-api.com)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(node -e:*)"
+    ]
+  }
+}
