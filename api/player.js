@@ -39,28 +39,39 @@ export default async function handler(req, res) {
     // Fallback to defaults
   }
 
-  // Try to get basic stats
+  // Try to get basic stats — fetch both ranked and all, merge & deduplicate
   try {
-    const statsUrl = `https://api.deadlock-api.com/v1/players/${accountId}/match-history?game_mode=1`;
-    const statsRes = await fetch(statsUrl, {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'deadlock-tracker/1.0' }
-    });
-    if (statsRes.ok) {
-      const data = await statsRes.json();
-      const matches = Array.isArray(data) ? data : [];
-      let wins = 0, total = 0, kills = 0, deaths = 0, assists = 0;
-      for (const m of matches) {
-        total++;
-        if (m.match_result === 1) wins++;
-        kills += m.player_kills || 0;
-        deaths += m.player_deaths || 0;
-        assists += m.player_assists || 0;
-      }
-      if (total > 0) {
-        const wr = ((wins / total) * 100).toFixed(1);
-        const kda = deaths > 0 ? ((kills + assists) / deaths).toFixed(2) : (kills + assists).toFixed(2);
-        description = `${total} matches | ${wins}W-${total - wins}L (${wr}%) | ${kda} KDA`;
-      }
+    const hdrs = { 'Accept': 'application/json', 'User-Agent': 'deadlock-tracker/1.0' };
+    const base = `https://api.deadlock-api.com/v1/players/${accountId}/match-history`;
+    const [r1, r2] = await Promise.all([
+      fetch(`${base}?game_mode=1`, { headers: hdrs }).catch(() => null),
+      fetch(base, { headers: hdrs }).catch(() => null),
+    ]);
+    const parse = async (r) => {
+      if (!r || !r.ok) return [];
+      const d = await r.json();
+      return Array.isArray(d) ? d : [];
+    };
+    const [a, b] = await Promise.all([parse(r1), parse(r2)]);
+    const seen = new Set();
+    const matches = [];
+    for (const m of [...a, ...b]) {
+      if (seen.has(m.match_id)) continue;
+      seen.add(m.match_id);
+      matches.push(m);
+    }
+    let wins = 0, total = 0, kills = 0, deaths = 0, assists = 0;
+    for (const m of matches) {
+      total++;
+      if (m.match_result === 1) wins++;
+      kills += m.player_kills || 0;
+      deaths += m.player_deaths || 0;
+      assists += m.player_assists || 0;
+    }
+    if (total > 0) {
+      const wr = ((wins / total) * 100).toFixed(1);
+      const kda = deaths > 0 ? ((kills + assists) / deaths).toFixed(2) : (kills + assists).toFixed(2);
+      description = `${total} matches | ${wins}W-${total - wins}L (${wr}%) | ${kda} KDA`;
     }
   } catch (e) {
     // Fallback to default description

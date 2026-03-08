@@ -531,11 +531,25 @@
   }
 
   async function fetchMatchHistory(accountId) {
-    const res = await fetch(`/api/proxy?endpoint=players/${accountId}/match-history&game_mode=1`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    const matches = Array.isArray(data) ? data : (data.matches || data.data || []);
-    return matches.map(m => ({
+    // Fetch both ranked (game_mode=1) and all matches, merge & deduplicate
+    const [res1, res2] = await Promise.all([
+      fetch(`/api/proxy?endpoint=players/${accountId}/match-history&game_mode=1`).catch(() => null),
+      fetch(`/api/proxy?endpoint=players/${accountId}/match-history`).catch(() => null),
+    ]);
+    const parse = async (r) => {
+      if (!r || !r.ok) return [];
+      const d = await r.json();
+      return Array.isArray(d) ? d : (d.matches || d.data || []);
+    };
+    const [a, b] = await Promise.all([parse(res1), parse(res2)]);
+    const seen = new Set();
+    const all = [];
+    for (const m of [...a, ...b]) {
+      if (seen.has(m.match_id)) continue;
+      seen.add(m.match_id);
+      all.push(m);
+    }
+    return all.map(m => ({
       match_id: m.match_id,
       duration_s: m.match_duration_s || m.duration_s || 0,
       start_time: m.start_time,
@@ -546,7 +560,6 @@
       net_worth: m.net_worth,
       won: m.match_result === 1,
     })).sort((a, b) => {
-      // Most recent first
       if (b.start_time && a.start_time) return b.start_time - a.start_time;
       return (b.match_id || 0) - (a.match_id || 0);
     });
