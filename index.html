@@ -531,27 +531,31 @@
   }
 
   async function fetchMatchHistory(accountId) {
-    const res = await fetch(`/api/proxy?endpoint=matches/metadata&account_ids=${accountId}&include_player_kda=true&include_player_info=true`);
+    const res = await fetch(`/api/proxy?endpoint=players/${accountId}/match-history`);
     if (!res.ok) return [];
     const data = await res.json();
     const matches = Array.isArray(data) ? data : (data.matches || data.data || []);
-    const aid = parseInt(accountId);
-    return matches.map(m => {
-      const p = (m.players || []).find(pl => pl.account_id === aid);
-      if (!p) return null;
-      return {
-        match_id: m.match_id, duration_s: m.duration_s, start_time: m.start_time,
-        winning_team: m.winning_team, hero_id: p.hero_id,
-        kills: p.kills||0, deaths: p.deaths||0, assists: p.assists||0,
-        net_worth: p.net_worth, player_team: p.team,
-      };
-    }).filter(Boolean);
+    return matches.map(m => ({
+      match_id: m.match_id,
+      duration_s: m.match_duration_s || m.duration_s || 0,
+      start_time: m.start_time,
+      hero_id: m.hero_id,
+      kills: m.player_kills || m.kills || 0,
+      deaths: m.player_deaths || m.deaths || 0,
+      assists: m.player_assists || m.assists || 0,
+      net_worth: m.net_worth,
+      won: m.match_result === 1,
+    })).sort((a, b) => {
+      // Most recent first
+      if (b.start_time && a.start_time) return b.start_time - a.start_time;
+      return (b.match_id || 0) - (a.match_id || 0);
+    });
   }
 
   function computeStats(matches) {
     let wins=0,losses=0,kills=0,deaths=0,assists=0;
     for (const m of matches) {
-      m.player_team === m.winning_team ? wins++ : losses++;
+      m.won ? wins++ : losses++;
       kills += m.kills; deaths += m.deaths; assists += m.assists;
     }
     const t = matches.length;
@@ -592,7 +596,7 @@
       const matches = await fetchMatchHistory(accountId);
       const stats = computeStats(matches);
       const top = topHero(matches);
-      const last5 = matches.slice(0, 5).map(m => m.player_team === m.winning_team ? 'w' : 'l');
+      const last5 = matches.slice(0, 5).map(m => m.won ? 'w' : 'l');
 
       return {
         steamid64: sid64, accountId, matches,
@@ -764,7 +768,7 @@
 
       const stats = computeStats(matches);
       const top = topHero(matches);
-      const last5 = matches.slice(0,5).map(m => m.player_team === m.winning_team ? 'w' : 'l');
+      const last5 = matches.slice(0,5).map(m => m.won ? 'w' : 'l');
 
       showDetail({
         steamid64, accountId, matches,
@@ -784,7 +788,7 @@
     for (const m of matches) {
       if (!m.hero_id) continue;
       if (!map[m.hero_id]) map[m.hero_id] = {hero_id:m.hero_id,games:0,wins:0,kills:0,deaths:0,assists:0};
-      const won = m.player_team === m.winning_team;
+      const won = m.won;
       map[m.hero_id].games++;
       if (won) map[m.hero_id].wins++;
       map[m.hero_id].kills += m.kills;
@@ -798,7 +802,7 @@
     const list = document.getElementById('matchList');
     list.innerHTML = '';
     for (const m of matches) {
-      const won = m.player_team === m.winning_team;
+      const won = m.won;
       const row = document.createElement('div');
       row.className = 'match-row';
       row.innerHTML = `

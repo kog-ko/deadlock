@@ -41,23 +41,20 @@ export default async function handler(req, res) {
 
   // Try to get basic stats
   try {
-    const statsUrl = `https://api.deadlock-api.com/v1/matches/metadata?account_ids=${accountId}&include_player_kda=true&include_player_info=true`;
+    const statsUrl = `https://api.deadlock-api.com/v1/players/${accountId}/match-history`;
     const statsRes = await fetch(statsUrl, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'deadlock-tracker/1.0' }
     });
     if (statsRes.ok) {
       const data = await statsRes.json();
-      const matches = Array.isArray(data) ? data : (data.matches || data.data || []);
-      const aid = parseInt(accountId);
+      const matches = Array.isArray(data) ? data : [];
       let wins = 0, total = 0, kills = 0, deaths = 0, assists = 0;
       for (const m of matches) {
-        const p = (m.players || []).find(pl => pl.account_id === aid);
-        if (!p) continue;
         total++;
-        if (p.team === m.winning_team) wins++;
-        kills += p.kills || 0;
-        deaths += p.deaths || 0;
-        assists += p.assists || 0;
+        if (m.match_result === 1) wins++;
+        kills += m.player_kills || 0;
+        deaths += m.player_deaths || 0;
+        assists += m.player_assists || 0;
       }
       if (total > 0) {
         const wr = ((wins / total) * 100).toFixed(1);
