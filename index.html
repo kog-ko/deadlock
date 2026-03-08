@@ -531,7 +531,7 @@
   }
 
   async function fetchMatchHistory(accountId) {
-    const res = await fetch(`/api/proxy?endpoint=players/${accountId}/match-history`);
+    const res = await fetch(`/api/proxy?endpoint=players/${accountId}/match-history&game_mode=1`);
     if (!res.ok) return [];
     const data = await res.json();
     const matches = Array.isArray(data) ? data : (data.matches || data.data || []);

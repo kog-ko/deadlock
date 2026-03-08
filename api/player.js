@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
   // Try to get basic stats
   try {
-    const statsUrl = `https://api.deadlock-api.com/v1/players/${accountId}/match-history`;
+    const statsUrl = `https://api.deadlock-api.com/v1/players/${accountId}/match-history?game_mode=1`;
     const statsRes = await fetch(statsUrl, {
       headers: { 'Accept': 'application/json', 'User-Agent': 'deadlock-tracker/1.0' }
     });
